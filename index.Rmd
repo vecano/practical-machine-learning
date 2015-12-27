@@ -1,0 +1,91 @@
+---
+title: "Exercise Type Predictor for Activity Trackers"
+author: "Vicente E. Cano"
+date: "December 27, 2015"
+output: html_document
+---
+
+# Introduction
+
+The purpose of this writeup is to be able to predict the way in which an exercise was performed while wearing an activity tracker. The data comes from the [Human Activity Recognition Project](http://groupware.les.inf.puc-rio.br/har) in which they measured 5 ways (sitting-down, standing-up, standing, walking, and sitting) of performing an exercise while wearing an activity tracker such as Jawbone Up, Nike FuelBand, and Fitbit.
+
+We have the raw data from these exercises and want to predict in which of the 5 classes was an exercise performed on a alternative data set.
+
+# Importing and Cleaning the Data
+
+We import the `caret` and `randomForest` packages which will be used to create the prediction model.
+
+```{r}
+library(caret)
+library(randomForest)
+```
+
+We download two files which contain the training data to be used to create the predictor model and the testing data to be used for the project to prediction values from the model.
+
+```{r}
+download.file("https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv", destfile="training.csv", method = "curl")
+download.file("https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv", destfile="testing.csv", method = "curl")
+```
+
+We import the training and testing (project) sets and assign `NA` values to those cells that are empty or have non-data strings ("NA" and "#DIV/0!").
+
+```{r}
+training <- read.csv("training.csv", na.strings=c("NA", "#DIV/0!", ""))
+testing <- read.csv("testing.csv", na.strings=c("NA", "#DIV/0!", ""))
+```
+
+We remove columns that do not have any actual data (have only `NA` values).
+
+```{r}
+training <- training[, colSums(is.na(training)) == 0]
+testing <- testing[, colSums(is.na(testing)) == 0]
+```
+
+We also remove the first 7 columns because they cannot be used as predictors, for example the `user_name` and `timestamp` columns.
+
+```{r}
+trainingset <- training[, -c(1:7)]
+testingset <- testing[, -c(1:7)]
+```
+
+The datatables are left with 53 columns to draw for prediction:
+
+```{r}
+dim(trainingset)
+dim(testingset)
+```
+
+# Partition the Data
+
+The data is partitioned into a 60% training set and a 40% testing set.
+
+```{r}
+set.seed(54321)
+trainIndex <- createDataPartition(y = trainingset$classe, p=0.6, list=FALSE)
+trainingPartition <- trainingset[trainIndex,]
+testingPartition <- trainingset[-trainIndex,]
+```
+
+# Creating and Validating the Model
+
+We create a model using the Random Forest classifier algorithm on the training set making use of the `importance` parameter and setting the `ntree` parameter to 10. We use this model to cross-validate against our testing set.
+
+```{r}
+# Creating the model from the training data
+model <- randomForest(classe ~., data=trainingPartition, importance = TRUE, ntrees = 10)
+
+# Verifying the prediction on the testing data set
+predictionTesting <- predict(model, testingPartition)
+confusionMatrix(predictionTesting, testingPartition$classe)
+```
+
+The out-of-sample error on the testing set is 0.6% (accuracy of 99.4%) and we notice only a few items outside of the predictor. The Random Forest classifier algorithm performs very well in determining the type of exercise on our testing data set.
+
+# Predicting on a New Data Set
+
+Finally, we apply our model on the assignment data set of 20 items:
+
+```{r}
+predictfinal <- predict(model, testing)
+predictfinal
+```
